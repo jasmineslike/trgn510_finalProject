@@ -1,0 +1,198 @@
+---
+title: "FinalProject"
+author: "Lili Xu"
+date: "11/3/2020"
+output: html_document
+---
+
+## Set Up the RNA-seq
+
+```{r set up}
+#set up the routine
+setwd("~/Desktop/TRGN510/trgn510_fall20/")
+#set up the cran mirror and choose the nearestby location
+chooseCRANmirror()
+#install pacakges
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("limma")
+BiocManager::install("Glimma")
+BiocManager::install("edgeR")
+BiocManager::install("Homo.sapiens")
+BiocManager::install("GenomicDataCommons")
+BiocManager::install("ShortRead")
+BiocManager::install()
+install.packages("stringr")
+library(limma)
+library(Glimma)
+library(edgeR)
+library(Homo.sapiens)
+library(GenomicDataCommons)
+library(ShortRead)
+library(stringr)
+
+```
+## Data packaging
+```{r}
+files <- list.files(pattern=".htseq.counts.gz$")
+ldf = lapply(files, function(x) {
+
+      dat = read.table(x, header=FALSE, sep="\t")
+
+      # Add column names
+      names(dat) = c('GeneID', 'Count')
+
+      return(dat)
+})
+for(i in 1:length(ldf)){
+  df = ldf[i]
+  filenames = files[i]
+  write.table(df, filenames, append = FALSE, sep = "\t",
+              row.names = TRUE, col.names = TRUE)
+}
+
+read.delim(files[1], nrow=5)
+```
+
+
+
+```{r reading}
+#read the files
+files <- c("7d9b1591-42eb-4d02-978e-0a194d498d6c.htseq.counts","8a705b7c-4607-4ede-9486-cbeb1191004e.htseq.counts","7922baf0-3d03-4b00-afa4-96c272583861.htseq.counts","77213cf0-8029-4470-af4e-a25fce4d4681.htseq.counts","39423508-c376-4582-80c0-ddcf81167d74.htseq.counts","b918773c-1920-42aa-8493-22344ea5ac49.htseq.counts","bcd07e88-975d-4f4b-9b2e-33ad0f2211f3.htseq.counts","dab350c1-f3b4-488b-8c48-7f8339e4a554.htseq.counts","e3bee637-c8c3-4953-842c-11b16ea1bf73.htseq.counts","e15d3de5-f141-487f-8262-8b0d20563c76.htseq.counts",
+           "0b4a2460-8f70-4f60-85b3-95d0012d38c8.htseq.counts","6f8c77f2-67de-411d-a03d-5fef3216b71b.htseq.counts","7d6848a5-7dfc-4494-9095-4e89fea1aee5.htseq.counts","9ef0c6dd-6e38-41fd-aff6-ae0800c7755d.htseq.counts","46f8e9d8-032c-471e-876c-1af0ac3b1cee.htseq.counts","a0cb35f5-0d64-4fb9-9747-acf4cfc88012.htseq.counts","aeb170cb-b227-4033-9e15-3d6d6102d856.htseq.counts","cd068064-b4cc-4a34-94be-ce95e3342c6d.htseq.counts","d076a8ce-ccc9-4b1d-9486-ad4e63b6f603.htseq.counts","dd752d51-02c4-4850-a355-18770d9be482.htseq.counts")
+#check the file content
+read.delim(files[12], nrow=5,header = FALSE)
+#combine files to a matrix of counts, use readDGE
+x <- readDGE(files, columns=c(1,2))
+class(x)
+dim(x)
+```
+## Organising sample information
+
+```{r organising sample}
+#grep the rownames
+samplenames <- substring(colnames(x), 0, nchar(colnames(x)))
+samplenames
+#set up the each row name
+colnames(x) <- samplenames
+#group by the old people and young people
+group <- c(rep("under50",10),rep("above51",10))
+x$samples$group <- group
+x$samples
+```
+## Organising gene annotations
+
+```{r organising gene annotations}
+#find the gene id which should be ensg...
+geneid <- rownames(x)
+geneid
+#grep the ensg without decimal
+gene <- str_match(geneid, "(\\w*).*")
+geneid <- gene[,2]
+#go through Homo pacakge and get the gene id and gene Name
+genes <- select(Homo.sapiens, 
+                keys=geneid,
+                columns=c("GENEID","GENENAME"),
+                keytype="ENSEMBL")
+head(genes)
+
+#delete duplicated, select one of the chromosomes to represent the gene with duplicate annotation
+genes <- genes[!duplicated(genes$ENSEMBL),]
+#import genes to DGEList
+x$genes <- genes
+x
+```
+
+
+## 5.1Transformations from the raw-scale
+
+```{rtransformations }
+#raw counts are converted to CPM and log-CPM values using cpm function in edgeR.
+cpm <- cpm(x)
+lcpm <- cpm(x, log=TRUE)
+#This calculation ensures that any two read counts with identical CPM values will also have identical log-CPM values. 
+#a couner of zero for this data maps to a log-cpm value of -4.51 adfter adding the prior count or offset
+L <- mean(x$samples$lib.size) * 1e-6
+M <- median(x$samples$lib.size) * 1e-6
+c(L, M)
+summary(lcpm)
+```
+
+## 5.2Removing genes that are lowly expressed
+```{r removing}
+#check how many count in the 20 datas are zero
+table(rowSums(x$counts==0)==20)
+
+# an automatic way to filter genes, while keeping as many genes as possible with worthwhile counts.
+keep.exprs <- filterByExpr(x, group=group)
+x <- x[keep.exprs,, keep.lib.sizes=FALSE]
+dim(x)
+
+#Plotting the distribution log-CPM values
+#reduce the number of genes based on the criterion
+lcpm.cutoff <- log2(10/M + 2/L)
+library(RColorBrewer)
+nsamples <- ncol(x)
+col <- brewer.pal(nsamples, "Paired")
+par(mfrow=c(1,2))
+plot(density(lcpm[,1]), col=col[1], lwd=2, ylim=c(0,0.26), las=2, main="", xlab="")
+title(main="A. Raw data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+for (i in 2:nsamples){
+den <- density(lcpm[,i])
+lines(den$x, den$y, col=col[i], lwd=2)
+}
+legend("topright", samplenames, text.col=col, bty="n")
+lcpm <- cpm(x, log=TRUE)
+plot(density(lcpm[,1]), col=col[1], lwd=2, ylim=c(0,0.26), las=2, main="", xlab="")
+title(main="B. Filtered data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+for (i in 2:nsamples){
+den <- density(lcpm[,i])
+lines(den$x, den$y, col=col[i], lwd=2)
+}
+legend("topright", samplenames, text.col=col, bty="n")
+```
+
+## 5.3Normalising gene expression distributions
+```{r normalising}
+#we need to normalising the gene to ensure the result are similar
+x <- calcNormFactors(x, method = "TMM")
+x$samples$norm.factors
+
+#show the effect of normalization, the data was duplicated and adjust, make first sample reduce 5% of the original, but the second sample should increase 5-times larger.
+x2 <- x
+x2$samples$norm.factors <- 1
+x2$counts[,1] <- ceiling(x2$counts[,1]*0.05)
+x2$counts[,2] <- x2$counts[,2]*5
+
+#There are two graphs shows unnormalised data and normalised data
+par(mfrow=c(1,2))
+lcpm <- cpm(x2, log=TRUE)
+boxplot(lcpm, las=2, col=col, main="")
+title(main="A. Example: Unnormalised data",ylab="Log-cpm")
+x2 <- calcNormFactors(x2)  
+x2$samples$norm.factors
+lcpm <- cpm(x2, log=TRUE)
+boxplot(lcpm, las=2, col=col, main="")
+title(main="B. Example: Normalised data",ylab="Log-cpm")
+```
+
+## 5.4Unsupervised clustering of samples
+```{r Unsupervised}
+#use plotMSD in limma package
+lcpm <- cpm(x, log=TRUE)
+par(mfrow=c(1,2))
+col.group <- c("young","old")[group]
+levels(col.group) <-  brewer.pal(nlevels(col.group), "Set1")
+col.group <- as.character(col.group)
+plotMDS(lcpm, labels=group, col=col.group)
+title(main="A. Sample groups")
+#draw MSD graph use Glimma package where explored multiple dimensions
+glMDSPlot(lcpm, groups=group)
+```
+
+
+
+
+
