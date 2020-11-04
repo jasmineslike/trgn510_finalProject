@@ -1,0 +1,177 @@
+---
+title: "FinalProject"
+output: html_document
+---
+
+# Set-up
+```{r}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("limma")
+BiocManager::install("Glimma")
+BiocManager::install("edgeR")
+BiocManager::install("Homo.sapiens")
+library(limma)
+library(Glimma)
+library(edgeR)
+library(Homo.sapiens)
+```
+
+#Data pre-processing
+
+## Reading in count-data
+```{r}
+setwd ('/Users/RuocenS/Desktop/RStuff/TRGN 510')
+files <- c("21badc40-5fb8-496d-a3e6-4f0704500a5d.htseq.counts","2fafd7bb-e8ce-4b03-8607-cf6cb2a2119a.htseq.counts","349eaa81-0d2c-4c2b-a762-31555fd1ca50.htseq.counts","820e3299-bd67-4ba8-a637-32d31205e120.htseq.counts","7824eae3-957c-4515-b128-45453a11624d.htseq.counts","960fa206-af01-4f92-b066-4e899fe356fb.htseq.counts","98cf4f9b-aa89-4c14-b84b-2b8f32439ea0.htseq.counts","d6706bff-1f56-43a5-a180-1223034cfc09.htseq.counts","fc8d7362-7eb6-42bb-b3eb-dba3053aa381.htseq.counts","646f0e58-d861-4761-9fd5-2e48cd28753e.htseq.counts","722becbc-9e08-4d7e-8dd6-415761cd84f3.htseq.counts","522efe0e-2785-4e16-85a0-898ea586ddcd.htseq.counts","6508275a-e712-424e-bdaf-b9e1b07b0f95.htseq.counts","5a092f95-7774-41ed-b70c-58ed1daa0cf1.htseq.counts","d6478e3f-149e-4b99-82c2-182405f1040b.htseq.counts","6578ea58-0e5d-43aa-927a-7ac53e1df985.htseq.counts","900e6a24-1504-4c2d-85dd-b1c6088339b2.htseq.counts","3d3245f2-a2c9-4742-bfec-cd17f5aaca23.htseq.counts","bd118e30-6764-4adb-8a5e-0a80bd6c6d74.htseq.counts","9b09de85-1cd6-472f-bac8-de05c101f4cb.htseq.counts",
+           "25f5c640-600a-4874-af11-1ff647b0b26d.htseq.counts","284d5f4a-5b44-42f7-90e6-14a5250183aa.htseq.counts","31944ca5-2685-4b3f-8f61-d1e41eea44f9.htseq.counts","34c48a6e-1714-4871-aa8f-7d39dd8fe78e.htseq.counts","35d0022b-f677-4340-a3db-c6558782b9d7.htseq.counts","37889f67-62a8-483b-97af-d8391806ede9.htseq.counts","60fd76fd-8522-497d-b631-e550988a1064.htseq.counts","6a7c7af6-b3b4-44a1-93bb-79a143db53d0.htseq.counts","8223f42b-434d-4966-a123-3b8a947884bc.htseq.counts","844bbccc-8e4e-4c0a-ad29-0aa196f14c26.htseq.counts","84762203-320a-4ef6-b080-4c2b04b6a619.htseq.counts","ceb8fbdf-dd36-4273-b17c-0ee2eca493c5.htseq.counts","d1be9c82-7450-4f59-b20b-5f3032aa89a9.htseq.counts","d44d370d-d86e-4006-9530-ab3442cb2848.htseq.counts","d4eed6a4-986c-409a-8f6c-1ddb00069894.htseq.counts","e87cfbaa-791e-4a6b-8ec8-28df636e7cdc.htseq.counts","e934722f-3571-4348-a518-1ad262b86b94.htseq.counts","f5bb4817-1727-41f9-b7f6-3a4e1818c2df.htseq.counts","f6a99d72-7ef2-4c9c-880c-a26bd5fef9c7.htseq.counts","f8fbe8b1-7831-4853-8dfd-be977f3a5da0.htseq.counts")
+read.delim(files[1],nrow=5,header=FALSE)
+getwd()
+```
+
+```{r}
+x <- readDGE(files, columns=c(1,2))
+class(x)
+```
+
+```{r}
+dim(x)
+```
+
+## Organising sample information
+```{r}
+samplenames <- substring(colnames(x), 12, nchar(colnames(x)))
+samplenames
+```
+
+```{r}
+colnames(x) <- samplenames
+group <- c(rep("Age 10-40",20),rep("Age 41-60",20))
+x$samples$group <- group
+x$samples
+```
+
+## Organising gene annotations
+```{r}
+install.packages("gsubfn")
+library(gsubfn)
+geneid <- rownames(x)
+geneid <- gsub("\\.[0-9]*$","",geneid)
+head(geneid)
+```
+
+```{r}
+genes <- select(Homo.sapiens, 
+                keys=geneid,
+                columns=c("GENEID","GENENAME"),
+                keytype="ENSEMBL")
+genes <- select(Homo.sapiens, keys=geneid, columns=c("SYMBOL", "TXCHROM"), 
+                keytype="ENSEMBL")
+head(genes)
+```
+
+```{r}
+genes <- genes[!duplicated(genes$ENSEMBL),]
+```
+
+```{r}
+x$genes <- genes
+x
+```
+
+# Data pre-processing
+
+## Transformations from the raw-scale
+```{r}
+cpm <- cpm(x)
+lcpm <- cpm(x, log=TRUE)
+
+L <- mean(x$samples$lib.size) * 1e-6
+M <- median(x$samples$lib.size) * 1e-6
+c(L, M)
+```
+
+```{r}
+summary(lcpm)
+```
+
+## Removing genes that are lowly expressed
+```{r}
+table(rowSums(x$counts==0)==9)
+```
+
+```{r}
+keep.exprs <- filterByExpr(x, group=group)
+x <- x[keep.exprs,, keep.lib.sizes=FALSE]
+dim(x)
+```
+
+```{r}
+lcpm.cutoff <- log2(10/M + 2/L)
+library(RColorBrewer)
+nsamples <- ncol(x)
+col <- brewer.pal(nsamples, "Paired")
+par(mfrow=c(1,2))
+plot(density(lcpm[,1]), col=col[1], lwd=2, ylim=c(0,0.26), las=2, main="", xlab="")
+title(main="A. Raw data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+for (i in 2:nsamples){
+den <- density(lcpm[,i])
+lines(den$x, den$y, col=col[i], lwd=2)
+}
+legend("topright", samplenames, text.col=col, bty="n")
+lcpm <- cpm(x, log=TRUE)
+plot(density(lcpm[,1]), col=col[1], lwd=2, ylim=c(0,0.26), las=2, main="", xlab="")
+title(main="B. Filtered data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+for (i in 2:nsamples){
+den <- density(lcpm[,i])
+lines(den$x, den$y, col=col[i], lwd=2)
+}
+legend("topright", samplenames, text.col=col, bty="n")
+```
+
+## Normalising gene expression distributions
+```{r}
+x <- calcNormFactors(x, method = "TMM")
+x$samples$norm.factors
+```
+
+```{r}
+x2 <- x
+x2$samples$norm.factors <- 1
+x2$counts[,1] <- ceiling(x2$counts[,1]*0.05)
+x2$counts[,2] <- x2$counts[,2]*5
+```
+
+```{r}
+par(mfrow=c(1,2))
+lcpm <- cpm(x2, log=TRUE)
+boxplot(lcpm, las=2, col=col, main="")
+title(main="A. Example: Unnormalised data",ylab="Log-cpm")
+x2 <- calcNormFactors(x2)  
+x2$samples$norm.factors
+```
+
+```{r}
+lcpm <- cpm(x2, log=TRUE)
+boxplot(lcpm, las=2, col=col, main="")
+title(main="B. Example: Normalised data",ylab="Log-cpm")
+```
+
+## Unsupervised clustering of samples
+```{r}
+lcpm <- cpm(x, log=TRUE)
+par(mfrow=c(1,2))
+group
+levels(group) <-  brewer.pal(nlevels(group), "Set1")
+col.group <- as.character(group)
+col.group <- c("purple","orange")[group]
+plotMDS(lcpm, labels=group, col=col.group)
+title(main="A. Sample groups")
+```
+
+```{r}
+glMDSPlot(lcpm, groups=group)
+```
+
