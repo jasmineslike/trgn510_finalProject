@@ -1,8 +1,6 @@
 ---
-title: "FinalProject"
-author: "Lili Xu"
-date: "11/3/2020"
-output: html_document
+title: "R Notebook"
+output: html_notebook
 ---
 
 ## Set Up the RNA-seq
@@ -219,7 +217,7 @@ plotSA(efit, main="Final model: Mean-variance trend")
 ```{r examing}
 summary(decideTests(efit))
 
-tfit <- treat(vfit, lfc=0)
+tfit <- treat(vfit, lfc=0.1)
 dt <- decideTests(tfit)
 summary(dt)
 
@@ -264,6 +262,4 @@ idx <- ids2indices(Mm.c2,id=rownames(v))
 cam.BasalvsLP <- camera(v,idx,design,contrast=contr.matrix[,1])
 head(cam.BasalvsLP,5)
 ```
-
-
 
