@@ -10,11 +10,19 @@
   - English version: https://www.bioconductor.org/packages/devel/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html
   - Chinese version: https://www.bioconductor.org/packages/devel/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow_CHN.html
 ## Data:
-There will be two different age groups, young people and old people, I will download 10 datas each group from TCGA website, these datas should contain the smoke history, the reslute of Vital Status, tumor stage, and so on:
+There will be two different race group(white vs. Black), and I also want to look at sexual distribution(female vs.Male), I will download 10 data each group from TCGA website, these datas should contain the smoke history, the reslute of Vital Status, tumor stage, and so on:
 https://portal.gdc.cancer.gov/repository?cases_offset=20&facetTab=cases&filters=%7B%22op%22%3A%22and%22%2C%22content%22%3A%5B%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.demographic.gender%22%2C%22value%22%3A%5B%22female%22%2C%22male%22%5D%7D%7D%2C%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.disease_type%22%2C%22value%22%3A%5B%22squamous%20cell%20neoplasms%22%5D%7D%7D%2C%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.primary_site%22%2C%22value%22%3A%5B%22bronchus%20and%20lung%22%5D%7D%7D%2C%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.project.program.name%22%2C%22value%22%3A%5B%22TCGA%22%5D%7D%7D%2C%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.project.project_id%22%2C%22value%22%3A%5B%22TCGA-LUSC%22%5D%7D%7D%5D%7D&searchTableTab=cases
+
 ## Milestone 1
-- Firstly, I downloaded 20 HTseq data from TCGA website. Then, I made a DGEList that combine 20 files to a matrix of counts, Use this DGEList, I got the geneName and geneId from Homo.sapines pacakage base on the ENSEMBL. Moreover, I transformed raw counts to CPM and log-CPM values and removed the low expressed gene. Finally, I normalised the gene expression distributions and draw a MSD plot base on these counts.
+•	Firstly, I downloaded 20 HTseq data from TCGA website. Then, I made a DGEList that combine 20 files to a matrix of counts, Use this DGEList, I got the geneName and geneId from Homo.sapines pacakage base on the ENSEMBL. Moreover, I transformed raw counts to CPM and log-CPM values and removed the low expressed gene. Finally, I normalised the gene expression distributions and draw a MSD plot base on these counts.
+   
+     Update 11/3/20: complete milestone1 on time, and upload milestone 1.
+
 ## Milestone 2
-- I want to generate plots of my data to detail display the RNA-seq result, like mean-variance plots, Venn diagram, Heatmap, Barcode, Interactive mean-difference plot, MDS plots and so on.
+•	For milestone 2, I get the code at the beginning and run the code, but I find the group and lane variables cannot show me the right result. So I change the group varibles from age to race, and add sexual lane. However, the up and down table cannot get the correct values, so I download more data from TCGA website. At the end, maybe the result is not very clear, but I learn lots of analysis method in this project.
+    
+     Update 11/12/20: adding more data, and complete milestone2 on time, change R markdown to R notebook, and get the html link.
+
 ## Deliverable
-- R MarkDown
+• R MarkDown
+• R NoteBook
