@@ -4,7 +4,10 @@ output: html_notebook
 ---
 
 ## Set Up the RNA-seq
-
+Firstly, we need to do inital the set up, like download necessary packages and load the library.
+limma, Glimma, edgeR packages are important analysis tools.
+Homo.sapiens which allowd us to get gene name, gene id, and ensembl.
+other packages are part for successful run other regular commands.
 ```{r set up}
 #set up the routine
 setwd("~/Desktop/TRGN510/trgn510_fall20/")
@@ -29,8 +32,11 @@ library(GenomicDataCommons)
 library(ShortRead)
 library(stringr)
 ```
-## Data packaging
-
+# #Data packaging
+## 4.1 read counts from files
+We download 4 groups data form TCGA website, for 10 white_female, 10 white_male,10 black_female, 10 black_male.
+Since it is non-convenient to combine 40 files to a list, here is a new concept is DGEList.
+DGEList can combine many files into one list with unique Entrez gene ids.
 ```{r reading}
 #read the files
 files <- c("3b7cb73f-d672-4d68-b28a-e01b82096ba4.htseq.counts.gz","b01ddd22-5864-4e4a-a463-62831421fe99.htseq.counts.gz","6d158f35-9847-41fd-814e-9bb63cca955f.htseq.counts.gz","2c4641bd-928f-4fa2-9931-3351955c2396.htseq.counts.gz","c258e44b-44c5-43d7-835e-912049ae12c4.htseq.counts.gz","7972a299-f3bb-43a5-b75f-a1cf3c998bc5.htseq.counts.gz","df652972-6474-474a-9745-4b58fff68744.htseq.counts.gz","c839556e-515d-4793-9960-0edd0a71a101.htseq.counts.gz","5be2bd1d-24ac-47c5-9e20-33dea602ed65.htseq.counts.gz","d0918436-f01a-49c3-afba-5c29f4076f6c.htseq.counts.gz",
@@ -44,8 +50,10 @@ x <- readDGE(files, columns=c(1,2))
 class(x)
 dim(x)
 ```
-## Organising sample information
-
+## 4.2 Organising sample information
+In order to downstream analysis, sample-level information should relate to count matrix.
+So we need to contain the expreimental variabels, both biological and technical, which will effect on expression level
+Here we identify the white and black as group, female and male as lane
 ```{r organising sample}
 #grep the rownames
 samplenames <- substring(colnames(x), 0, nchar(colnames(x)))
@@ -59,8 +67,12 @@ lane <- as.factor(rep(c("female","male","female","male"), c(10,10,10,10)))
 x$samples$lane <- lane
 x$samples
 ```
-## Organising gene annotations
-
+## 4.3 Organising gene annotations
+We need to get the gene id form the DGEList, such as ENSG2333838.23.
+However, this ENSMBL name contains decimals, it is important to grep the information
+before the decimal. After that, we can get the genes information form Homo.sapines package,
+which contains all gene information. We use ENSMBL as keytype to get the GENEID and GENENAME.
+Finally, we need delete the duplicated gene, make sure each gene only show up for one time.
 ```{r organising gene annotations}
 #find the gene id which should be ensg...
 geneid <- rownames(x)
@@ -83,8 +95,10 @@ x
 ```
 
 
-## 5.1Transformations from the raw-scale
-
+## 5.1 Transformations from the raw-scale
+For differential expression and related analyses, gene expression is rarely considered at the level of raw counts since libraries sequenced at a greater depth will result in higher counts. Rather, it is common practice to transform raw counts onto a scale that accounts for such library size differences.
+Usually, the methods that we used are CPM, log-CPM based on sequence.
+We are using `cpm` in the edgeR package to convert raw counts to CPM and log-CPM.
 ```{r transformations }
 #raw counts are converted to CPM and log-CPM values using cpm function in edgeR.
 cpm <- cpm(x)
@@ -97,10 +111,14 @@ c(L, M)
 summary(lcpm)
 ```
 
-## 5.2Removing genes that are lowly expressed
+## 5.2 Removing genes that are lowly expressed
+All combined data contains highly expressed data and lowly expressed data. We want to test genes that expressed in one condition but not other condition, sometimes some genes are not expressed on both condition.
+We can use `filterByExpr` function in the edgeR package to remove those genes.
+If the library sizes had been larger then a lower CPM cutoff would have been chosen, because larger library sizes provide better resolution to explore more genes at lower expression levels. 
+And then we can plot the distribution of log-CPM values
 ```{r removing}
-#check how many count in the 20 datas are zero
-table(rowSums(x$counts==0)==20)
+#check how many count in the 40 datas are zero
+table(rowSums(x$counts==0)==40)
 
 # an automatic way to filter genes, while keeping as many genes as possible with worthwhile counts.
 keep.exprs <- filterByExpr(x, group=group)
@@ -133,7 +151,8 @@ lines(den$x, den$y, col=col[i], lwd=2)
 legend("topright", samplenames, text.col=col, bty="n")
 ```
 
-## 5.3Normalising gene expression distributions
+## 5.3 Normalising gene expression distributions
+When we prepare the sample and did sequencing process, there are external factors will affect the expression of individual samples which are not biological interest. For instance, the first package of samples will have higher expression than the second one. So we need to do a normalisation to make sure that expression distributions of each sample are similar across the entire experiment.
 ```{r normalising}
 #we need to normalising the gene to ensure the result are similar
 x <- calcNormFactors(x, method = "TMM")
@@ -157,7 +176,8 @@ boxplot(lcpm, las=2, col=col, main="")
 title(main="B. Example: Normalised data",ylab="Log-cpm")
 ```
 
-## 5.4Unsupervised clustering of samples
+## 5.4 Unsupervised clustering of samples
+In our opinion, one of the most important exploratory plots to examine for gene expression analyses is the multi-dimensional scaling (MDS) plot. This plot will show us how much the gene are related, using group. when we look at the distribution of the plot, we will noticy that more same genes are together, this variables will be more related to the cancer.
 ```{r Unsupervised}
 #use plotMSD in limma package
 lcpm <- cpm(x, log=TRUE)
@@ -186,13 +206,15 @@ glMDSPlot(lcpm, labels=paste(group, lane, sep="_"),
           groups=x$samples[,c(2,5)],launch = FALSE)
 ```
 
-## 6.1Creating a design matrix and contrasts
-
+## 6.1 Creating a design matrix and contrasts
+We want to know how different expression level that these two color groups.
 ```{r creating}
+# a design matrix is set up with both the color populations and sequencing lane (batch) information.
 design <- model.matrix(~0+group+lane)
 colnames(design) <- gsub("group", "", colnames(design))
 design
 
+# make a matrix using makeContrasts funtion in the limma packages, which design a compare group
 contr.matrix <- makeContrasts(
    whitevsblack = white-black, 
    levels = colnames(design))
@@ -200,7 +222,10 @@ contr.matrix
 ```
 
 
-## 6.2Removing heteroscedascity from count data
+## 6.2 Removing heteroscedascity from count data
+In limma, linear modelling is carried out on the log-CPM values which are assumed to be normally distributed and the mean-variance relationship is accommodated using precision weights calculated by the `voom `function.
+When operating the DGEList, `voom` will automatic adapt the  library sizes and normalisation factors form `x`, in order to convert raw data to log-CPM.
+The graphs show how trend is removed after `voom` precision weights are applied to the data.
 ```{r remove heter}
 par(mfrow=c(1,2))
 v <- voom(x, design, plot=TRUE)
@@ -213,14 +238,19 @@ plotSA(efit, main="Final model: Mean-variance trend")
 
 ```
 
-## 6.4Examining the number of DE genes
+## 6.4 Examining the number of DE genes
+We can quick check the different expression levels, with the number of significantly up and down regulated genes, all in one table. 
+Significance is defined using an adjusted p-value cutoff that is set at 5% by default. 
 ```{r examing}
+# get the table before
 summary(decideTests(efit))
 
+# adjust p value which give different result
 tfit <- treat(vfit, lfc=0.1)
 dt <- decideTests(tfit)
+# check the table again
 summary(dt)
-
+# get the common gene which differnt expression
 de.common <- which(dt[,1]!=0)
 length(de.common)
 
@@ -231,20 +261,24 @@ vennDiagram(dt[,1], circle.col=c("turquoise", "salmon"))
 write.fit(tfit, dt, file="results.txt")
 ```
 
-## 6.5Examining individual DE genes from top to bottom
+## 6.5 Examining individual DE genes from top to bottom
+The top DE genes can be listed using `topTreat` for results using `treat`.
+we are sorting the gene as small to large, and provide the info of each gene
 ```{r examing de}
 white.vs.black <- topTreat(tfit, coef=1, n=Inf)
 head(white.vs.black)
 ```
 
-## 6.6Useful graphical representations of differential expression results
+## 6.6 Useful graphical representations of differential expression results
+we want to visualize the result using plots, mean-differenece plots, which display log-FCs form the linear model fit against the average log-CPM values can be generated using the `plotMD` function, with the differentially expressed genes highlighted.
 ```{r graphical}
 plotMD(tfit, column=1, status=dt[,1], main=colnames(tfit)[1], 
        xlim=c(-8,13))
-
+# glMDPlot will more clear and dynamic to show the result.
 glMDPlot(tfit, coef=1, status=dt, main=colnames(tfit)[1],
          side.main="ENSEMBL", counts=lcpm, groups=group,launch = FALSE)
 
+#A heatmap is created for the top 100 DE genes (as ranked by adjusted p-value) from the basal versus LP contrast using the heatmap.2 function from the gplots package.
 library(gplots)
 white.vs.black.topgenes <- white.vs.black$ENSEMBL[1:100]
 i <- which(v$genes$ENSEMBL %in% white.vs.black.topgenes)
@@ -255,11 +289,4 @@ heatmap.2(lcpm[i,], scale="row",
    margin=c(8,6), lhei=c(2,10), dendrogram="column")
 ```
 
-## 7
-```{r}
-load(system.file("extdata", "human_c2_v5p2.rda", package = "RNAseq123"))
-idx <- ids2indices(Mm.c2,id=rownames(v))
-cam.BasalvsLP <- camera(v,idx,design,contrast=contr.matrix[,1])
-head(cam.BasalvsLP,5)
-```
 
